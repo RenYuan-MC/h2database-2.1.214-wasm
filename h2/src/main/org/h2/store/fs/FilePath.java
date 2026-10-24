@@ -12,7 +12,8 @@ import java.nio.channels.Channels;
 import java.nio.channels.FileChannel;
 import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
-import org.h2.store.fs.disk.FilePathDisk;
+import org.h2.store.fs.mem.FilePathMem;
+import org.h2.store.fs.wasm.FilePathWasm;
 import org.h2.util.MathUtils;
 
 /**
@@ -40,34 +41,15 @@ public abstract class FilePath {
     public String name;
 
     static {
-        FilePath def = null;
+        // RenYuan wasm branch: the browser build only ships the in-memory providers.
+        // Reflection based lookup is not used because TeaVM wasmGC does not keep the
+        // constructor metadata that Class.forName(...).getDeclaredConstructor() needs.
+        FilePath mem = new FilePathMem();
+        FilePath wasm = new FilePathWasm();
         ConcurrentHashMap<String, FilePath> map = new ConcurrentHashMap<>();
-        for (String c : new String[] {
-                "org.h2.store.fs.disk.FilePathDisk",
-                "org.h2.store.fs.mem.FilePathMem",
-                "org.h2.store.fs.mem.FilePathMemLZF",
-                "org.h2.store.fs.niomem.FilePathNioMem",
-                "org.h2.store.fs.niomem.FilePathNioMemLZF",
-                "org.h2.store.fs.split.FilePathSplit",
-                "org.h2.store.fs.niomapped.FilePathNioMapped",
-                "org.h2.store.fs.async.FilePathAsync",
-                "org.h2.store.fs.zip.FilePathZip",
-                "org.h2.store.fs.retry.FilePathRetryOnInterrupt"
-        }) {
-            try {
-                FilePath p = (FilePath) Class.forName(c).getDeclaredConstructor().newInstance();
-                map.put(p.getScheme(), p);
-                if (p.getClass() == FilePathDisk.class) {
-                    map.put("nio", p);
-                }
-                if (def == null) {
-                    def = p;
-                }
-            } catch (Exception e) {
-                // ignore - the files may be excluded in purpose
-            }
-        }
-        defaultProvider = def;
+        map.put(mem.getScheme(), mem);
+        map.put(wasm.getScheme(), wasm);
+        defaultProvider = mem;
         providers = map;
     }
 

@@ -259,40 +259,21 @@ public class Utils {
     }
 
     public static long getGarbageCollectionTime() {
-        long totalGCTime = 0;
-        for (GarbageCollectorMXBean gcMXBean : ManagementFactory.getGarbageCollectorMXBeans()) {
-            long collectionTime = gcMXBean.getCollectionTime();
-            if(collectionTime > 0) {
-                totalGCTime += collectionTime;
-            }
-        }
-        return totalGCTime;
+        // RenYuan wasm branch: java.lang.management is not available.
+        return 0;
     }
 
     public static long getGarbageCollectionCount() {
-        long totalGCCount = 0;
-        int poolCount = 0;
-        for (GarbageCollectorMXBean gcMXBean : ManagementFactory.getGarbageCollectorMXBeans()) {
-            long collectionCount = gcMXBean.getCollectionTime();
-            if(collectionCount > 0) {
-                totalGCCount += collectionCount;
-                poolCount += gcMXBean.getMemoryPoolNames().length;
-            }
-        }
-        poolCount = Math.max(poolCount, 1);
-        return (totalGCCount + (poolCount >> 1)) / poolCount;
+        // RenYuan wasm branch: java.lang.management is not available.
+        return 0;
     }
 
     /**
      * Run Java memory garbage collection.
      */
     public static synchronized void collectGarbage() {
-        Runtime runtime = Runtime.getRuntime();
-        long garbageCollectionCount = getGarbageCollectionCount();
-        while (garbageCollectionCount == getGarbageCollectionCount()) {
-            runtime.gc();
-            Thread.yield();
-        }
+        // RenYuan wasm branch: there is no way to observe garbage collection.
+        Runtime.getRuntime().gc();
     }
 
     /**
@@ -680,28 +661,7 @@ public class Utils {
      * @return the scaled value
      */
     public static int scaleForAvailableMemory(int value) {
-        long maxMemory = Runtime.getRuntime().maxMemory();
-        if (maxMemory != Long.MAX_VALUE) {
-            // we are limited by an -XmX parameter
-            return (int) (value * maxMemory / (1024 * 1024 * 1024));
-        }
-        try {
-            OperatingSystemMXBean mxBean = ManagementFactory
-                    .getOperatingSystemMXBean();
-            // this method is only available on the class
-            // com.sun.management.OperatingSystemMXBean, which mxBean
-            // is an instance of under the Oracle JDK, but it is not present on
-            // Android and other JDK's
-            Method method = Class.forName(
-                    "com.sun.management.OperatingSystemMXBean").
-                    getMethod("getTotalPhysicalMemorySize");
-            long physicalMemorySize = ((Number) method.invoke(mxBean)).longValue();
-            return (int) (value * physicalMemorySize / (1024 * 1024 * 1024));
-        } catch (Exception e) {
-            // ignore
-        } catch (Error error) {
-            // ignore
-        }
+        // RenYuan wasm branch: java.lang.management is not available.
         return value;
     }
 

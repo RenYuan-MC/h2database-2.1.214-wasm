@@ -21,7 +21,6 @@ import org.h2.util.DateTimeUtils;
 import org.h2.util.MathUtils;
 import org.h2.util.ParserUtil;
 import org.h2.util.StringUtils;
-import org.h2.util.ThreadDeadlockDetector;
 import org.h2.util.TimeZoneProvider;
 import org.h2.util.Utils;
 
@@ -39,9 +38,7 @@ public final class Engine {
     private static boolean JMX;
 
     static {
-        if (SysProperties.THREAD_DEADLOCK_DETECTOR) {
-            ThreadDeadlockDetector.init();
-        }
+        // RenYuan wasm branch: ThreadDeadlockDetector requires java.lang.management.
     }
 
     private static SessionLocal openSession(ConnectionInfo ci, boolean ifExists, boolean forbidCreation,

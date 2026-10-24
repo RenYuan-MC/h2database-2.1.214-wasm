@@ -14,8 +14,6 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
 import org.h2.mvstore.cache.FilePathCache;
 import org.h2.store.fs.FilePath;
-import org.h2.store.fs.encrypt.FileEncrypt;
-import org.h2.store.fs.encrypt.FilePathEncrypt;
 
 /**
  * The default storage mechanism of the MVStore. This implementation persists
@@ -125,17 +123,16 @@ public class FileStore {
      *            used
      */
     public void open(String fileName, boolean readOnly, char[] encryptionKey) {
-        open(fileName, readOnly,
-                encryptionKey == null ? null
-                        : fileChannel -> new FileEncrypt(fileName, FilePathEncrypt.getPasswordBytes(encryptionKey),
-                                fileChannel));
+        if (encryptionKey != null) {
+            // RenYuan wasm branch: encrypted files are not part of the browser build.
+            throw new UnsupportedOperationException("encrypted file store");
+        }
+        open(fileName, readOnly, (Function<FileChannel, FileChannel>) null);
     }
 
     public FileStore open(String fileName, boolean readOnly) {
-
         FileStore result = new FileStore();
-        result.open(fileName, readOnly, encryptedFile == null ? null :
-                fileChannel -> new FileEncrypt(fileName, (FileEncrypt)file, fileChannel));
+        result.open(fileName, readOnly, (Function<FileChannel, FileChannel>) null);
         return result;
     }
 

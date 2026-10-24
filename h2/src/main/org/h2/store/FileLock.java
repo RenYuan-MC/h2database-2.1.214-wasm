@@ -51,11 +51,6 @@ public class FileLock implements Runnable {
     private volatile String fileName;
 
     /**
-     * The server socket (only used when using the SOCKET mode).
-     */
-    private volatile ServerSocket serverSocket;
-
-    /**
      * Whether the file is locked.
      */
     private volatile boolean locked;
@@ -101,16 +96,13 @@ public class FileLock implements Runnable {
      * @throws DbException if locking was not successful
      */
     public synchronized void lock(FileLockMethod fileLockMethod) {
-        checkServer();
         if (locked) {
             throw DbException.getInternalError("already locked");
         }
         switch (fileLockMethod) {
         case FILE:
-            lockFile();
-            break;
         case SOCKET:
-            lockSocket();
+            lockFile();
             break;
         case FS:
         case NO:
@@ -141,14 +133,10 @@ public class FileLock implements Runnable {
                     FileUtils.delete(fileName);
                 }
             }
-            if (serverSocket != null) {
-                serverSocket.close();
-            }
         } catch (Exception e) {
             trace.debug(e, "unlock");
         } finally {
             fileName = null;
-            serverSocket = null;
         }
         try {
             if (watchdog != null) {
@@ -210,48 +198,12 @@ public class FileLock implements Runnable {
          * cache.
          */
         try {
-            try (FileChannel f = FileChannel.open(Paths.get(fileName), FileUtils.RWS, FileUtils.NO_ATTRIBUTES);) {
+            try (FileChannel f = org.h2.store.fs.FilePath.get(fileName).open("rws")) {
                 ByteBuffer b = ByteBuffer.wrap(new byte[1]);
                 f.read(b);
             }
         } catch (IOException ignoreEx) {}
         return FileUtils.lastModified(fileName);
-    }
-
-    private void checkServer() {
-        Properties prop = load();
-        String server = prop.getProperty("server");
-        if (server == null) {
-            return;
-        }
-        boolean running = false;
-        String id = prop.getProperty("id");
-        try {
-            Socket socket = NetUtils.createSocket(server,
-                    Constants.DEFAULT_TCP_PORT, false);
-            Transfer transfer = new Transfer(null, socket);
-            transfer.init();
-            transfer.writeInt(Constants.TCP_PROTOCOL_VERSION_MIN_SUPPORTED);
-            transfer.writeInt(Constants.TCP_PROTOCOL_VERSION_MAX_SUPPORTED);
-            transfer.writeString(null);
-            transfer.writeString(null);
-            transfer.writeString(id);
-            transfer.writeInt(SessionRemote.SESSION_CHECK_KEY);
-            transfer.flush();
-            int state = transfer.readInt();
-            if (state == SessionRemote.STATUS_OK) {
-                running = true;
-            }
-            transfer.close();
-            socket.close();
-        } catch (IOException e) {
-            return;
-        }
-        if (running) {
-            DbException e = DbException.get(
-                    ErrorCode.DATABASE_ALREADY_OPEN_1, "Server is running");
-            throw e.addSQL(server + "/" + id);
-        }
     }
 
     /**
@@ -344,79 +296,6 @@ public class FileLock implements Runnable {
         watchdog.start();
     }
 
-    private void lockSocket() {
-        method = SOCKET;
-        properties = new SortedProperties();
-        properties.setProperty("method", String.valueOf(method));
-        setUniqueId();
-        // if this returns 127.0.0.1,
-        // the computer is probably not networked
-        String ipAddress = NetUtils.getLocalAddress();
-        FileUtils.createDirectories(FileUtils.getParent(fileName));
-        if (!FileUtils.createFile(fileName)) {
-            waitUntilOld();
-            long read = aggressiveLastModified(fileName);
-            Properties p2 = load();
-            String m2 = p2.getProperty("method", SOCKET);
-            if (m2.equals(FILE)) {
-                lockFile();
-                return;
-            } else if (!m2.equals(SOCKET)) {
-                throw getExceptionFatal("Unsupported lock method " + m2, null);
-            }
-            String ip = p2.getProperty("ipAddress", ipAddress);
-            if (!ipAddress.equals(ip)) {
-                throw getExceptionAlreadyInUse("Locked by another computer: " + ip);
-            }
-            String port = p2.getProperty("port", "0");
-            int portId = Integer.parseInt(port);
-            InetAddress address;
-            try {
-                address = InetAddress.getByName(ip);
-            } catch (UnknownHostException e) {
-                throw getExceptionFatal("Unknown host " + ip, e);
-            }
-            for (int i = 0; i < 3; i++) {
-                try {
-                    Socket s = new Socket(address, portId);
-                    s.close();
-                    throw getExceptionAlreadyInUse("Locked by another process");
-                } catch (BindException e) {
-                    throw getExceptionFatal("Bind Exception", null);
-                } catch (ConnectException e) {
-                    trace.debug(e, "socket not connected to port " + port);
-                } catch (IOException e) {
-                    throw getExceptionFatal("IOException", null);
-                }
-            }
-            if (read != aggressiveLastModified(fileName)) {
-                throw getExceptionFatal("Concurrent update", null);
-            }
-            FileUtils.delete(fileName);
-            if (!FileUtils.createFile(fileName)) {
-                throw getExceptionFatal("Another process was faster", null);
-            }
-        }
-        try {
-            // 0 to use any free port
-            serverSocket = NetUtils.createServerSocket(0, false);
-            int port = serverSocket.getLocalPort();
-            properties.setProperty("ipAddress", ipAddress);
-            properties.setProperty("port", Integer.toString(port));
-        } catch (Exception e) {
-            trace.debug(e, "lock");
-            serverSocket = null;
-            lockFile();
-            return;
-        }
-        save();
-        locked = true;
-        watchdog = new Thread(this,
-                "H2 File Lock Watchdog (Socket) " + fileName);
-        watchdog.setDaemon(true);
-        watchdog.start();
-    }
-
     private static void sleep(int time) {
         try {
             Thread.sleep(time);
@@ -486,20 +365,6 @@ public class FileLock implements Runnable {
                     Thread.sleep(sleep);
                 } catch (OutOfMemoryError | NullPointerException | InterruptedException e) {
                     // ignore
-                } catch (Exception e) {
-                    trace.debug(e, "watchdog");
-                }
-            }
-            while (true) {
-                // take a copy so we don't get an NPE between checking it and using it
-                ServerSocket local = serverSocket;
-                if (local == null) {
-                    break;
-                }
-                try {
-                    trace.debug("watchdog accept");
-                    Socket s = local.accept();
-                    s.close();
                 } catch (Exception e) {
                     trace.debug(e, "watchdog");
                 }

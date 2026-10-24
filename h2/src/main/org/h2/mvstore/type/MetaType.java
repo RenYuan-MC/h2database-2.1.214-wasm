@@ -75,14 +75,19 @@ public final class MetaType<D> extends BasicDataType<DataType<?>> {
                 }
                 return (DataType<?>) o;
             }
-            Class<?> clazz = Class.forName(className);
-            boolean singleton = false;
-            Object obj;
-            try {
-                obj = clazz.getDeclaredField("INSTANCE").get(null);
-                singleton = true;
-            } catch (ReflectiveOperationException | NullPointerException e) {
-                obj = clazz.getDeclaredConstructor().newInstance();
+            boolean singleton = true;
+            Object obj = createWellKnownDataType(className);
+            if (obj == null) {
+                // RenYuan wasm branch: the built-in H2 data types above are created without reflection,
+                // because the browser runtime does not preserve constructor metadata.
+                Class<?> clazz = Class.forName(className);
+                singleton = false;
+                try {
+                    obj = clazz.getDeclaredField("INSTANCE").get(null);
+                    singleton = true;
+                } catch (ReflectiveOperationException | NullPointerException e) {
+                    obj = clazz.getDeclaredConstructor().newInstance();
+                }
             }
             if (obj instanceof StatefulDataType.Factory) {
                 StatefulDataType.Factory<D> factory = (StatefulDataType.Factory<D>) obj;
@@ -97,7 +102,43 @@ public final class MetaType<D> extends BasicDataType<DataType<?>> {
             if (exceptionHandler != null) {
                 exceptionHandler.uncaughtException(Thread.currentThread(), e);
             }
-            throw new RuntimeException(e);
+            throw new RuntimeException(className, e);
+        }
+    }
+
+    /**
+     * Instantiate the built-in H2 data type factories without reflection. Reflection is not
+     * available in the browser runtime, so the well known classes are created directly.
+     *
+     * @param className the class name stored in the store
+     * @return the factory, or {@code null} if the name is not one of the built-in ones
+     */
+    private static Object createWellKnownDataType(String className) {
+        switch (className) {
+        case "org.h2.mvstore.db.ValueDataType":
+            return new org.h2.mvstore.db.ValueDataType();
+        case "org.h2.mvstore.db.NullValueDataType":
+            return org.h2.mvstore.db.NullValueDataType.INSTANCE;
+        case "org.h2.mvstore.db.ValueDataType$Factory":
+            return new org.h2.mvstore.db.ValueDataType.Factory();
+        case "org.h2.mvstore.db.RowDataType$Factory":
+            return new org.h2.mvstore.db.RowDataType.Factory();
+        case "org.h2.mvstore.tx.VersionedValueType$Factory":
+            return new org.h2.mvstore.tx.VersionedValueType.Factory<>();
+        case "org.h2.mvstore.type.ByteArrayDataType":
+            return org.h2.mvstore.type.ByteArrayDataType.INSTANCE;
+        case "org.h2.mvstore.type.LongDataType":
+            return org.h2.mvstore.type.LongDataType.INSTANCE;
+        case "org.h2.mvstore.type.StringDataType":
+            return org.h2.mvstore.type.StringDataType.INSTANCE;
+        case "org.h2.mvstore.type.ObjectDataType":
+            return new org.h2.mvstore.type.ObjectDataType();
+        case "org.h2.mvstore.db.LobStorageMap$BlobReference$Type":
+            return org.h2.mvstore.db.LobStorageMap.BlobReference.Type.INSTANCE;
+        case "org.h2.mvstore.db.LobStorageMap$BlobMeta$Type":
+            return org.h2.mvstore.db.LobStorageMap.BlobMeta.Type.INSTANCE;
+        default:
+            return null;
         }
     }
 

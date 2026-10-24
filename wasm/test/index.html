@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>H2 WASM smoke test</title>
+<style>
+  body { background: #1e1e1e; color: #d4d4d4; font: 13px/1.5 Consolas, monospace; padding: 16px; }
+  h1 { font-size: 15px; color: #4ec9b0; }
+  pre { white-space: pre-wrap; word-break: break-all; border: 1px solid #333; padding: 8px; margin: 8px 0; }
+  .ok { color: #6a9955; }
+  .err { color: #f48771; }
+</style>
+</head>
+<body>
+<h1>H2 WASM smoke test</h1>
+<div id="out"></div>
+<script src="../wasm-gc-runtime.js"></script>
+<script>
+const out = document.getElementById('out');
+function log(label, text) {
+  const pre = document.createElement('pre');
+  pre.className = 'ok';
+  pre.textContent = label + ': ' + text;
+  out.appendChild(pre);
+  console.log(label, text);
+}
+function fail(text) {
+  const pre = document.createElement('pre');
+  pre.className = 'err';
+  pre.textContent = text;
+  out.appendChild(pre);
+  console.error(text);
+}
+function toBase64(bytes) {
+  let binary = '';
+  for (let i = 0; i < bytes.length; i++) {
+    binary += String.fromCharCode(bytes[i]);
+  }
+  return btoa(binary);
+}
+async function main() {
+  try {
+    const response = await fetch('fixture/smoke.mv.db');
+    const db = toBase64(new Uint8Array(await response.arrayBuffer()));
+    const teavm = await TeaVM.wasmGC.load('../build/generated/teavm/wasm-gc/h2wasm.wasm', {});
+    const h2 = teavm.exports;
+    log('exports', Object.keys(h2).join(', '));
+    log('open', h2.open(db, 'sa', ''));
+    log('tables', h2.tables());
+    log('query1', h2.query('SELECT TABLE_SCHEMA, TABLE_NAME FROM INFORMATION_SCHEMA.TABLES'));
+    log('query2', h2.query('SELECT * FROM PUBLIC.USERS ORDER BY ID'));
+    h2.close();
+    log('close', 'ok');
+    document.title = 'DONE';
+  } catch (e) {
+    fail(String(e && e.stack || e));
+    document.title = 'FAILED';
+  }
+}
+main();
+</script>
+</body>
+</html>

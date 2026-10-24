@@ -56,7 +56,6 @@ import org.h2.store.FileStore;
 import org.h2.store.InDoubtTransaction;
 import org.h2.store.LobStorageInterface;
 import org.h2.store.fs.FileUtils;
-import org.h2.store.fs.encrypt.FileEncrypt;
 import org.h2.table.Column;
 import org.h2.table.IndexColumn;
 import org.h2.table.Table;
@@ -65,7 +64,6 @@ import org.h2.table.TableSynonym;
 import org.h2.table.TableType;
 import org.h2.table.TableView;
 import org.h2.tools.DeleteDbFiles;
-import org.h2.tools.Server;
 import org.h2.util.JdbcUtils;
 import org.h2.util.MathUtils;
 import org.h2.util.NetUtils;
@@ -191,7 +189,6 @@ public final class Database implements DataHandler, CastDataProvider {
     private SmallLRUCache<String, String[]> lobFileListCache;
     private final boolean autoServerMode;
     private final int autoServerPort;
-    private Server server;
     private HashMap<TableLinkConnection, TableLinkConnection> linkConnections;
     private final TempFileDeleter tempFileDeleter = TempFileDeleter.getInstance();
     private int compactMode;
@@ -232,8 +229,9 @@ public final class Database implements DataHandler, CastDataProvider {
         this.autoServerMode = ci.getProperty("AUTO_SERVER", false);
         this.autoServerPort = ci.getProperty("AUTO_SERVER_PORT", 0);
         pageSize = ci.getProperty("PAGE_SIZE", Constants.DEFAULT_PAGE_SIZE);
-        if (cipher != null && pageSize % FileEncrypt.BLOCK_SIZE != 0) {
-            throw DbException.getUnsupportedException("CIPHER && PAGE_SIZE=" + pageSize);
+        if (cipher != null) {
+            // RenYuan wasm branch: encrypted databases are not part of the browser build.
+            throw DbException.getUnsupportedException("CIPHER");
         }
         String accessModeData = StringUtils.toLowerEnglish(ci.getProperty("ACCESS_MODE_DATA", "rw"));
         if ("r".equals(accessModeData)) {
@@ -663,33 +661,12 @@ public final class Database implements DataHandler, CastDataProvider {
     }
 
     private void startServer(String key) {
-        try {
-            server = Server.createTcpServer(
-                    "-tcpPort", Integer.toString(autoServerPort),
-                    "-tcpAllowOthers",
-                    "-tcpDaemon",
-                    "-key", key, databaseName);
-            server.start();
-        } catch (SQLException e) {
-            throw DbException.convert(e);
-        }
-        String localAddress = NetUtils.getLocalAddress();
-        String address = localAddress + ":" + server.getPort();
-        lock.setProperty("server", address);
-        String hostName = NetUtils.getHostName(localAddress);
-        lock.setProperty("hostName", hostName);
-        lock.save();
+        // RenYuan wasm branch: AUTO_SERVER mode is not available in the browser build.
+        throw DbException.getUnsupportedException("AUTO_SERVER");
     }
 
     private void stopServer() {
-        if (server != null) {
-            Server s = server;
-            // avoid calling stop recursively
-            // because stopping the server will
-            // try to close the database as well
-            server = null;
-            s.stop();
-        }
+        // RenYuan wasm branch: AUTO_SERVER mode is not available in the browser build.
     }
 
     private void recompileInvalidViews() {
@@ -1524,6 +1501,11 @@ public final class Database implements DataHandler, CastDataProvider {
 
     private void deleteOldTempFiles() {
         String path = FileUtils.getParent(databaseName);
+        if (path == null) {
+            // RenYuan wasm branch: virtual file names (e.g. "wasm:db") have no parent directory,
+            // and there are never temporary files to clean up in that case.
+            return;
+        }
         for (String name : FileUtils.newDirectoryStream(path)) {
             if (name.endsWith(Constants.SUFFIX_TEMP_FILE) &&
                     name.startsWith(databaseName)) {

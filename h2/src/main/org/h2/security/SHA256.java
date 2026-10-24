@@ -5,13 +5,9 @@
  */
 package org.h2.security;
 
-import java.security.GeneralSecurityException;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.Arrays;
-
-import javax.crypto.Mac;
-import javax.crypto.spec.SecretKeySpec;
 
 import org.h2.util.Bits;
 
@@ -78,21 +74,12 @@ public class SHA256 {
      * @return the hash
      */
     public static byte[] getHMAC(byte[] key, byte[] message) {
-        return initMac(key).doFinal(message);
+        // RenYuan wasm branch: javax.crypto is not available in the browser runtime.
+        throw new UnsupportedOperationException("HMAC is not supported in this runtime");
     }
 
-    private static Mac initMac(byte[] key) {
-        // Java forbids empty keys
-        if (key.length == 0) {
-            key = new byte[1];
-        }
-        try {
-            Mac mac = Mac.getInstance("HmacSHA256");
-            mac.init(new SecretKeySpec(key, "HmacSHA256"));
-            return mac;
-        } catch (GeneralSecurityException e) {
-            throw new RuntimeException(e);
-        }
+    private static Object initMac(byte[] key) {
+        throw new UnsupportedOperationException("HMAC is not supported in this runtime");
     }
 
     /**
@@ -106,30 +93,8 @@ public class SHA256 {
      */
     public static byte[] getPBKDF2(byte[] password, byte[] salt,
             int iterations, int resultLen) {
-        byte[] result = new byte[resultLen];
-        Mac mac = initMac(password);
-        int len = 64 + Math.max(32, salt.length + 4);
-        byte[] message = new byte[len];
-        byte[] macRes = null;
-        for (int k = 1, offset = 0; offset < resultLen; k++, offset += 32) {
-            for (int i = 0; i < iterations; i++) {
-                if (i == 0) {
-                    System.arraycopy(salt, 0, message, 0, salt.length);
-                    Bits.writeInt(message, salt.length, k);
-                    len = salt.length + 4;
-                } else {
-                    System.arraycopy(macRes, 0, message, 0, 32);
-                    len = 32;
-                }
-                mac.update(message, 0, len);
-                macRes = mac.doFinal();
-                for (int j = 0; j < 32 && j + offset < resultLen; j++) {
-                    result[j + offset] ^= macRes[j];
-                }
-            }
-        }
-        Arrays.fill(password, (byte) 0);
-        return result;
+        // RenYuan wasm branch: javax.crypto is not available in the browser runtime.
+        throw new UnsupportedOperationException("PBKDF2 is not supported in this runtime");
     }
 
     /**

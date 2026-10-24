@@ -1,0 +1,15 @@
+.gradle/
+build/
+out/
+
+# Generated wasm / debug artifacts (rebuilt by generateWasmGC)
+*.wasm
+*.wasm.teadbg
+*.wat
+*.class
+
+# Release jar used only to regenerate test/fixture/smoke.mv.db
+test/fixture/*.jar
+
+# JVM crash dumps
+*.hprof

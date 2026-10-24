@@ -232,24 +232,12 @@ public class CipherFactory {
      *          or not accessible
      */
     public static String getLegacyAlgorithmsSilently() {
-        String defaultLegacyAlgorithms = null;
-        try {
-            defaultLegacyAlgorithms = Security.getProperty(LEGACY_ALGORITHMS_SECURITY_KEY);
-        } catch (SecurityException e) {
-            // ignore
-        }
-        return defaultLegacyAlgorithms;
+        // RenYuan wasm branch: java.security.Security is not part of the browser runtime.
+        return null;
     }
 
     private static void setLegacyAlgorithmsSilently(String legacyAlgorithms) {
-        if (legacyAlgorithms == null) {
-            return;
-        }
-        try {
-            Security.setProperty(LEGACY_ALGORITHMS_SECURITY_KEY, legacyAlgorithms);
-        } catch (SecurityException e) {
-            // ignore
-        }
+        // RenYuan wasm branch: java.security.Security is not part of the browser runtime.
     }
 
     private static byte[] getKeyStoreBytes(KeyStore store, String password)

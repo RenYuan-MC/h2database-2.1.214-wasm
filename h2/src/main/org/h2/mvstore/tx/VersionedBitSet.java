@@ -28,6 +28,13 @@ final class VersionedBitSet extends BitSet {
 
     @Override
     public VersionedBitSet clone() {
-        return (VersionedBitSet)super.clone();
+        // RenYuan wasm branch: TeaVM's BitSet.clone() creates a plain BitSet and loses
+        // the subclass, so the state is copied explicitly instead of casting the result.
+        VersionedBitSet copy = new VersionedBitSet();
+        for (int i = nextSetBit(0); i >= 0; i = nextSetBit(i + 1)) {
+            copy.set(i);
+        }
+        copy.version = version;
+        return copy;
     }
 }

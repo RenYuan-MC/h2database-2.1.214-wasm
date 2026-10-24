@@ -5,6 +5,8 @@
  */
 package org.h2.security.auth;
 
+import org.h2.message.DbException;
+
 /**
  * Authenticator factory
  */
@@ -15,6 +17,6 @@ public class AuthenticatorFactory {
      * @return authenticator instance.
      */
     public static Authenticator createAuthenticator() {
-        return DefaultAuthenticator.getInstance();
+        throw DbException.getUnsupportedException("Authenticator");
     }
 }

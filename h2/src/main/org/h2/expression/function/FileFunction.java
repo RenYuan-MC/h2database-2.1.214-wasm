@@ -10,8 +10,6 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.io.Reader;
-import java.nio.file.Files;
-import java.nio.file.Paths;
 
 import org.h2.engine.Database;
 import org.h2.engine.SessionLocal;
@@ -88,7 +86,7 @@ public final class FileFunction extends Function1_2 {
                 v1 = ValueNull.INSTANCE;
             } else {
                 String fileName = v2.getString();
-                try (OutputStream fileOutputStream = Files.newOutputStream(Paths.get(fileName));
+                try (OutputStream fileOutputStream = FileUtils.newOutputStream(fileName, false);
                         InputStream in = v1.getInputStream()) {
                     v1 = ValueBigint.get(IOUtils.copy(in, fileOutputStream));
                 } catch (IOException e) {

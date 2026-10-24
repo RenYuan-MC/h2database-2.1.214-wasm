@@ -124,36 +124,8 @@ public class NetUtils {
      */
     public static Socket createSocket(InetAddress address, int port, boolean ssl, int networkTimeout)
             throws IOException {
-        long start = System.nanoTime();
-        for (int i = 0;; i++) {
-            try {
-                if (ssl) {
-                    return CipherFactory.createSocket(address, port);
-                }
-                Socket socket = new Socket();
-                socket.setSoTimeout(networkTimeout);
-                socket.connect(new InetSocketAddress(address, port),
-                        SysProperties.SOCKET_CONNECT_TIMEOUT);
-                return socket;
-            } catch (IOException e) {
-                if (System.nanoTime() - start >= SysProperties.SOCKET_CONNECT_TIMEOUT * 1_000_000L) {
-                    // either it was a connect timeout,
-                    // or list of different exceptions
-                    throw e;
-                }
-                if (i >= SysProperties.SOCKET_CONNECT_RETRY) {
-                    throw e;
-                }
-                // wait a bit and retry
-                try {
-                    // sleep at most 256 ms
-                    long sleep = Math.min(256, i * i);
-                    Thread.sleep(sleep);
-                } catch (InterruptedException e2) {
-                    // ignore
-                }
-            }
-        }
+        // RenYuan wasm branch: client sockets are not available in the browser runtime.
+        throw new IOException("Network is not available in this runtime");
     }
 
     /**
@@ -198,21 +170,8 @@ public class NetUtils {
     }
 
     private static ServerSocket createServerSocketTry(int port, boolean ssl) {
-        try {
-            InetAddress bindAddress = getBindAddress();
-            if (ssl) {
-                return CipherFactory.createServerSocket(port, bindAddress);
-            }
-            if (bindAddress == null) {
-                return new ServerSocket(port);
-            }
-            return new ServerSocket(port, 0, bindAddress);
-        } catch (BindException be) {
-            throw DbException.get(ErrorCode.EXCEPTION_OPENING_PORT_2,
-                    be, Integer.toString(port), be.toString());
-        } catch (IOException e) {
-            throw DbException.convertIOException(e, "port: " + port + " ssl: " + ssl);
-        }
+        // RenYuan wasm branch: server sockets are not available in the browser runtime.
+        throw DbException.getUnsupportedException("network");
     }
 
     /**
@@ -263,48 +222,7 @@ public class NetUtils {
      * @return the local host address
      */
     public static synchronized String getLocalAddress() {
-        long now = System.nanoTime();
-        if (cachedLocalAddress != null && now - cachedLocalAddressTime < CACHE_MILLIS * 1_000_000L) {
-            return cachedLocalAddress;
-        }
-        InetAddress bind = null;
-        boolean useLocalhost = false;
-        try {
-            bind = getBindAddress();
-            if (bind == null) {
-                useLocalhost = true;
-            }
-        } catch (UnknownHostException e) {
-            // ignore
-        }
-        if (useLocalhost) {
-            try {
-                bind = InetAddress.getLocalHost();
-            } catch (UnknownHostException e) {
-                throw DbException.convert(e);
-            }
-        }
-        String address;
-        if (bind == null) {
-            address = "localhost";
-        } else {
-            address = bind.getHostAddress();
-            if (bind instanceof Inet6Address) {
-                if (address.indexOf('%') >= 0) {
-                    address = "localhost";
-                } else if (address.indexOf(':') >= 0 && !address.startsWith("[")) {
-                    // adds'[' and ']' if required for
-                    // Inet6Address that contain a ':'.
-                    address = "[" + address + "]";
-                }
-            }
-        }
-        if (address.equals("127.0.0.1")) {
-            address = "localhost";
-        }
-        cachedLocalAddress = address;
-        cachedLocalAddressTime = now;
-        return address;
+        return "127.0.0.1";
     }
 
     /**
