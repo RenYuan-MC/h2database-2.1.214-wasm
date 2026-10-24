@@ -160,6 +160,30 @@ public final class H2Wasm {
     }
 
     /**
+     * Commit pending changes and export the current database image without closing the
+     * session. The editor uses this for cheap undo snapshots.
+     *
+     * @return a JSON result with the base64 encoded database file
+     */
+    @JSExport
+    public static String snapshot() {
+        if (session == null) {
+            return "{\"ok\":false,\"error\":\"database is not open\"}";
+        }
+        try {
+            session.commit(true);
+            session.getDatabase().checkpoint();
+            byte[] data = FilePathWasm.exportDatabase();
+            if (data == null) {
+                return "{\"ok\":false,\"error\":\"no database image\"}";
+            }
+            return "{\"ok\":true,\"base64\":\"" + Base64.getEncoder().encodeToString(data) + "\"}";
+        } catch (Throwable e) {
+            return error(e);
+        }
+    }
+
+    /**
      * Close the database and release the image without exporting it.
      */
     @JSExport
